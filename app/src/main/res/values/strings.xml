@@ -64,7 +64,8 @@
     <string name="settings_dns_query_method_summary">For servers on port 53 only. Port 853 uses DoT and addresses with a path use DoH automatically.</string>
     <string name="settings_boot_summary">Start the service automatically after the phone boots</string>
     <string name="settings_notification_summary">Persistent notification while the service runs, with a stop button and a shortcut to the settings</string>
-    <string name="settings_foreground_summary">Run as a foreground service so that the system is less likely to kill it</string>
+    <string name="settings_foreground_summary">Run as a foreground service so that the system is less likely to kill it; the notification is then always shown</string>
+    <string name="log_crashes">=== Crashes (logs/crash.log) ===</string>
     <string name="settings_log_size_summary">Maximum size of the log in characters; 0 disables the log, -1 removes the limit</string>
     <string name="settings_app_filter_summary">Route only the selected apps through Daedalus, or every app except the selected ones</string>
     <string name="settings_app_filter_mode_summary">On: the selected apps bypass Daedalus. Off: only the selected apps use it</string>

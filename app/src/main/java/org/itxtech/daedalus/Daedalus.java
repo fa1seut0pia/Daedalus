@@ -99,6 +99,7 @@ public class Daedalus extends Application {
         mResolver = new Thread(new RuleResolver());
         mResolver.start();
         initData();
+        Logger.installCrashHandler();
         SocksProxy.installAuthenticator();
     }
 
@@ -253,9 +254,12 @@ public class Daedalus extends Application {
         DaedalusVpnService.primaryServer = (AbstractDnsServer) DnsServerHelper.getServerById(DnsServerHelper.getPrimary()).clone();
         DaedalusVpnService.secondaryServer = (AbstractDnsServer) DnsServerHelper.getServerById(DnsServerHelper.getSecondary()).clone();
         if ((getInstance().prefs.getBoolean("settings_foreground", false) || forceForeground)
-                && Build.VERSION.SDK_INT > Build.VERSION_CODES.O) {
+                && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             Logger.info("Starting foreground service");
-            context.startForegroundService(Daedalus.getServiceIntent(context).setAction(DaedalusVpnService.ACTION_ACTIVATE));
+            // The service must then call startForeground() promptly, see DaedalusVpnService
+            context.startForegroundService(Daedalus.getServiceIntent(context)
+                    .setAction(DaedalusVpnService.ACTION_ACTIVATE)
+                    .putExtra(DaedalusVpnService.EXTRA_FOREGROUND, true));
         } else {
             Logger.info("Starting background service");
             context.startService(Daedalus.getServiceIntent(context).setAction(DaedalusVpnService.ACTION_ACTIVATE));

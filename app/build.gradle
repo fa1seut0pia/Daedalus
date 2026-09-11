@@ -2,6 +2,13 @@ apply plugin: 'com.android.application'
 
 def gitCommit = 'git rev-parse --short HEAD'.execute([], project.rootDir).text.trim()
 
+// 顶部加：读 local.properties
+def keystoreProperties = new Properties()
+def keystorePropertiesFile = rootProject.file("local.properties")
+if (keystorePropertiesFile.exists()) {
+    keystoreProperties.load(new FileInputStream(keystorePropertiesFile))
+}
+
 android {
     compileSdkVersion 31
     buildToolsVersion "31.0.0"
@@ -15,8 +22,20 @@ android {
         buildConfigField "String", "BUILD_TIME", "\"${System.currentTimeMillis()}\""
         buildConfigField "String", "GIT_COMMIT", "\"${gitCommit}\""
     }
+
+    // ⭐ 新增：签名配置
+    signingConfigs {
+        release {
+            storeFile file(keystoreProperties['RELEASE_STORE_FILE'])
+            storePassword keystoreProperties['RELEASE_STORE_PASSWORD']
+            keyAlias keystoreProperties['RELEASE_KEY_ALIAS']
+            keyPassword keystoreProperties['RELEASE_KEY_PASSWORD']
+        }
+    }
+
     buildTypes {
         release {
+            signingConfig signingConfigs.release   // ⭐ 新增这行
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }

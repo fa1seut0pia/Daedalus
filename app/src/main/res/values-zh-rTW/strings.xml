@@ -64,7 +64,8 @@
     <string name="settings_dns_query_method_summary">僅用於 53 連接埠的伺服器。853 連接埠自動使用 DoT，帶路徑的位址自動使用 DoH。</string>
     <string name="settings_boot_summary">開機後自動啟動服務</string>
     <string name="settings_notification_summary">服務執行時顯示常駐通知，可從通知直接停用或開啟設定</string>
-    <string name="settings_foreground_summary">以前景服務執行，減少被系統清除的機率</string>
+    <string name="settings_foreground_summary">以前景服務執行，減少被系統清除的機率；此時通知必定顯示</string>
+    <string name="log_crashes">=== 當機記錄（logs/crash.log）===</string>
     <string name="settings_log_size_summary">紀錄檔最多保留的字元數；0 關閉紀錄，-1 不限制</string>
     <string name="settings_app_filter_summary">只讓選取的應用程式經過 Daedalus，或者排除選取的應用程式</string>
     <string name="settings_app_filter_mode_summary">開啟：選取的應用程式不經過 Daedalus；關閉：只有選取的應用程式經過</string>

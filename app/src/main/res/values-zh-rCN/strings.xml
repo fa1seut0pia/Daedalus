@@ -64,7 +64,8 @@
     <string name="settings_dns_query_method_summary">仅用于 53 端口的服务器。853 端口自动使用 DoT，带路径的地址自动使用 DoH。</string>
     <string name="settings_boot_summary">开机后自动启用服务</string>
     <string name="settings_notification_summary">服务运行时显示常驻通知，可从通知直接停用或打开设置</string>
-    <string name="settings_foreground_summary">以前台服务运行，减少被系统清理的概率</string>
+    <string name="settings_foreground_summary">以前台服务运行，减少被系统清理的概率；此时通知必定显示</string>
+    <string name="log_crashes">=== 崩溃记录（logs/crash.log）===</string>
     <string name="settings_log_size_summary">日志最多保留的字符数；0 关闭日志，-1 不限制</string>
     <string name="settings_app_filter_summary">只让选中的应用经过 Daedalus，或者排除选中的应用</string>
     <string name="settings_app_filter_mode_summary">开启：选中的应用不经过 Daedalus；关闭：只有选中的应用经过</string>

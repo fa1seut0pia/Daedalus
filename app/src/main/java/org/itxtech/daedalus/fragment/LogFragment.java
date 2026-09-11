@@ -39,7 +39,12 @@ public class LogFragment extends ToolbarFragment implements Toolbar.OnMenuItemCl
     }
 
     private void refresh() {
-        ((TextView) getView().findViewById(R.id.textView_log)).setText(Logger.getLog());
+        String text = Logger.getLog();
+        String crashes = Logger.getCrashLog();
+        if (crashes != null) {
+            text = getString(R.string.log_crashes) + "\n" + crashes + "\n" + text;
+        }
+        ((TextView) getView().findViewById(R.id.textView_log)).setText(text);
     }
 
     private void export() {
@@ -70,6 +75,7 @@ public class LogFragment extends ToolbarFragment implements Toolbar.OnMenuItemCl
         switch (id) {
             case R.id.action_delete:
                 Logger.init();
+                Logger.clearCrashLog();
                 refresh();
                 break;
             case R.id.action_refresh:

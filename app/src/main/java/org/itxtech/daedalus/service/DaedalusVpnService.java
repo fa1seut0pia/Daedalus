@@ -57,6 +57,11 @@ import java.util.concurrent.atomic.AtomicInteger;
 public class DaedalusVpnService extends VpnService implements Runnable {
     public static final String ACTION_ACTIVATE = "org.itxtech.daedalus.service.DaedalusVpnService.ACTION_ACTIVATE";
     public static final String ACTION_DEACTIVATE = "org.itxtech.daedalus.service.DaedalusVpnService.ACTION_DEACTIVATE";
+    /**
+     * Set when the service is started with startForegroundService(): it then has to call
+     * startForeground() right away, or the system kills the app after a few seconds.
+     */
+    public static final String EXTRA_FOREGROUND = "org.itxtech.daedalus.service.DaedalusVpnService.EXTRA_FOREGROUND";
 
     private static final int NOTIFICATION_ACTIVATED = 0;
 
@@ -79,6 +84,7 @@ public class DaedalusVpnService extends VpnService implements Runnable {
     private static InetAddress aliasSecondary;
 
     private NotificationCompat.Builder notification = null;
+    private boolean foreground = false;
     private boolean running = false;
     private long lastUpdate = 0;
     private boolean statisticQuery;
@@ -129,44 +135,17 @@ public class DaedalusVpnService extends VpnService implements Runnable {
             switch (intent.getAction()) {
                 case ACTION_ACTIVATE:
                     activated = true;
-                    if (Daedalus.getPrefs().getBoolean("settings_notification", true)) {
-                        NotificationManager manager = (NotificationManager) this.getSystemService(Context.NOTIFICATION_SERVICE);
-
-                        NotificationCompat.Builder builder;
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                            NotificationChannel channel = new NotificationChannel(CHANNEL_ID, CHANNEL_NAME, NotificationManager.IMPORTANCE_LOW);
-                            manager.createNotificationChannel(channel);
-                            builder = new NotificationCompat.Builder(this, CHANNEL_ID);
+                    boolean startForeground = intent.getBooleanExtra(EXTRA_FOREGROUND, false);
+                    if (startForeground || Daedalus.getPrefs().getBoolean("settings_notification", true)) {
+                        NotificationCompat.Builder builder = buildNotification();
+                        if (startForeground) {
+                            // A foreground service always shows its notification
+                            startForeground(NOTIFICATION_ACTIVATED, builder.build());
+                            foreground = true;
                         } else {
-                            builder = new NotificationCompat.Builder(this);
+                            NotificationManager manager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+                            manager.notify(NOTIFICATION_ACTIVATED, builder.build());
                         }
-
-                        Intent deactivateIntent = new Intent(StatusBarBroadcastReceiver.STATUS_BAR_BTN_DEACTIVATE_CLICK_ACTION);
-                        deactivateIntent.setClass(this, StatusBarBroadcastReceiver.class);
-                        Intent settingsIntent = new Intent(StatusBarBroadcastReceiver.STATUS_BAR_BTN_SETTINGS_CLICK_ACTION);
-                        settingsIntent.setClass(this, StatusBarBroadcastReceiver.class);
-                        PendingIntent pIntent = PendingIntent.getActivity(this, 0,
-                                new Intent(this, MainActivity.class), getPendingIntent(PendingIntent.FLAG_UPDATE_CURRENT));
-                        builder.setWhen(0)
-                                .setContentTitle(getResources().getString(R.string.notice_activated))
-                                .setDefaults(NotificationCompat.DEFAULT_LIGHTS)
-                                .setSmallIcon(R.drawable.ic_security)
-                                .setColor(getResources().getColor(R.color.colorPrimary)) //backward compatibility
-                                .setAutoCancel(false)
-                                .setOngoing(true)
-                                .setTicker(getResources().getString(R.string.notice_activated))
-                                .setContentIntent(pIntent)
-                                .addAction(R.drawable.ic_clear, getResources().getString(R.string.button_text_deactivate),
-                                        PendingIntent.getBroadcast(this, 0,
-                                                deactivateIntent, getPendingIntent(PendingIntent.FLAG_UPDATE_CURRENT)))
-                                .addAction(R.drawable.ic_settings, getResources().getString(R.string.action_settings),
-                                        PendingIntent.getBroadcast(this, 0,
-                                                settingsIntent, getPendingIntent(PendingIntent.FLAG_UPDATE_CURRENT)));
-
-                        Notification notification = builder.build();
-
-                        manager.notify(NOTIFICATION_ACTIVATED, notification);
-
                         this.notification = builder;
                     }
 
@@ -184,6 +163,41 @@ public class DaedalusVpnService extends VpnService implements Runnable {
             }
         }
         return START_NOT_STICKY;
+    }
+
+    private NotificationCompat.Builder buildNotification() {
+        NotificationManager manager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+        NotificationCompat.Builder builder;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            NotificationChannel channel = new NotificationChannel(CHANNEL_ID, CHANNEL_NAME, NotificationManager.IMPORTANCE_LOW);
+            manager.createNotificationChannel(channel);
+            builder = new NotificationCompat.Builder(this, CHANNEL_ID);
+        } else {
+            builder = new NotificationCompat.Builder(this);
+        }
+
+        Intent deactivateIntent = new Intent(StatusBarBroadcastReceiver.STATUS_BAR_BTN_DEACTIVATE_CLICK_ACTION);
+        deactivateIntent.setClass(this, StatusBarBroadcastReceiver.class);
+        Intent settingsIntent = new Intent(StatusBarBroadcastReceiver.STATUS_BAR_BTN_SETTINGS_CLICK_ACTION);
+        settingsIntent.setClass(this, StatusBarBroadcastReceiver.class);
+        PendingIntent pIntent = PendingIntent.getActivity(this, 0,
+                new Intent(this, MainActivity.class), getPendingIntent(PendingIntent.FLAG_UPDATE_CURRENT));
+        builder.setWhen(0)
+                .setContentTitle(getResources().getString(R.string.notice_activated))
+                .setDefaults(NotificationCompat.DEFAULT_LIGHTS)
+                .setSmallIcon(R.drawable.ic_security)
+                .setColor(getResources().getColor(R.color.colorPrimary)) //backward compatibility
+                .setAutoCancel(false)
+                .setOngoing(true)
+                .setTicker(getResources().getString(R.string.notice_activated))
+                .setContentIntent(pIntent)
+                .addAction(R.drawable.ic_clear, getResources().getString(R.string.button_text_deactivate),
+                        PendingIntent.getBroadcast(this, 0,
+                                deactivateIntent, getPendingIntent(PendingIntent.FLAG_UPDATE_CURRENT)))
+                .addAction(R.drawable.ic_settings, getResources().getString(R.string.action_settings),
+                        PendingIntent.getBroadcast(this, 0,
+                                settingsIntent, getPendingIntent(PendingIntent.FLAG_UPDATE_CURRENT)));
+        return builder;
     }
 
     private void startThread() {
@@ -223,6 +237,10 @@ public class DaedalusVpnService extends VpnService implements Runnable {
                     mThread.interrupt();
                 }
                 mThread = null;
+            }
+            if (foreground) {
+                stopForeground(true);
+                foreground = false;
             }
             if (notification != null) {
                 NotificationManager notificationManager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);

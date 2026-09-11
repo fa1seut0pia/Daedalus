@@ -3,8 +3,13 @@ package org.itxtech.daedalus.util;
 import android.util.Log;
 import org.itxtech.daedalus.Daedalus;
 
+import java.io.File;
+import java.io.FileWriter;
+import java.io.IOException;
 import java.io.PrintWriter;
+import java.io.RandomAccessFile;
 import java.io.StringWriter;
+import java.nio.charset.StandardCharsets;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 
@@ -20,6 +25,9 @@ import java.util.Date;
  * (at your option) any later version.
  */
 public class Logger {
+    private static final String CRASH_FILE = "crash.log";
+    private static final int CRASH_LOG_LIMIT = 200 * 1024;
+
     private static StringBuffer buffer = null;
 
     public static void init() {
@@ -36,6 +44,63 @@ public class Logger {
 
     public static String getLog() {
         return buffer.toString();
+    }
+
+    /**
+     * Records uncaught exceptions of every thread in logs/crash.log before the system
+     * handles them, so that the reason of a crash survives the process.
+     */
+    public static void installCrashHandler() {
+        final Thread.UncaughtExceptionHandler previous = Thread.getDefaultUncaughtExceptionHandler();
+        Thread.setDefaultUncaughtExceptionHandler((thread, throwable) -> {
+            try {
+                File file = getCrashFile();
+                if (file != null) {
+                    try (FileWriter writer = new FileWriter(file, true)) {
+                        writer.write("=== " + new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(new Date())
+                                + " thread \"" + thread.getName() + "\" ===\n" + getExceptionMessage(throwable) + "\n");
+                    }
+                }
+            } catch (Exception ignored) {
+            }
+            if (previous != null) {
+                previous.uncaughtException(thread, throwable);
+            }
+        });
+    }
+
+    private static File getCrashFile() {
+        if (Daedalus.logPath != null) {
+            return new File(Daedalus.logPath, CRASH_FILE);
+        }
+        Daedalus app = Daedalus.getInstance();
+        return app == null ? null : new File(app.getFilesDir(), CRASH_FILE);
+    }
+
+    /**
+     * The recorded crashes (oldest first, capped to the last 200 KB), or null when none.
+     */
+    public static String getCrashLog() {
+        File file = getCrashFile();
+        if (file == null || !file.isFile() || file.length() == 0) {
+            return null;
+        }
+        try (RandomAccessFile raf = new RandomAccessFile(file, "r")) {
+            long start = Math.max(0, raf.length() - CRASH_LOG_LIMIT);
+            byte[] data = new byte[(int) (raf.length() - start)];
+            raf.seek(start);
+            raf.readFully(data);
+            return new String(data, StandardCharsets.UTF_8);
+        } catch (IOException e) {
+            return null;
+        }
+    }
+
+    public static void clearCrashLog() {
+        File file = getCrashFile();
+        if (file != null && file.exists() && !file.delete()) {
+            warning("Cannot delete " + file);
+        }
     }
 
     public static void error(String message) {
