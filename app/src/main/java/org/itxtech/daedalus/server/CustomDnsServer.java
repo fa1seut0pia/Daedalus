@@ -16,6 +16,11 @@ import org.itxtech.daedalus.Daedalus;
 public class CustomDnsServer extends AbstractDnsServer {
     private String name;
     private String id;
+    // Reached through the SOCKS5 proxy (Settings > SOCKS5 Proxy), e.g. a DNS server inside
+    // an EasyTier subnet. Missing in configurations written by older versions, so false by default.
+    private boolean proxied;
+    // Certificate trusted for DoT connections to this server (self-signed or private CA), or null
+    private String certificate;
 
     public CustomDnsServer(String name, String address, int port) {
         super(address, port);
@@ -23,6 +28,7 @@ public class CustomDnsServer extends AbstractDnsServer {
         this.id = String.valueOf(Daedalus.configurations.getNextDnsId());
     }
 
+    @Override
     public String getId() {
         return id;
     }
@@ -37,5 +43,23 @@ public class CustomDnsServer extends AbstractDnsServer {
 
     public void setName(String name) {
         this.name = name;
+    }
+
+    @Override
+    public boolean isProxied() {
+        return proxied;
+    }
+
+    public void setProxied(boolean proxied) {
+        this.proxied = proxied;
+    }
+
+    @Override
+    public String getCertificate() {
+        return certificate;
+    }
+
+    public void setCertificate(String certificate) {
+        this.certificate = certificate;
     }
 }

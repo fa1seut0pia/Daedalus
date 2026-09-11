@@ -15,6 +15,7 @@ import androidx.annotation.NonNull;
  */
 public class AbstractDnsServer implements Cloneable {
     public static final int DNS_SERVER_DEFAULT_PORT = 53;
+    public static final int DNS_SERVER_TLS_PORT = 853;
 
     protected String address;
     protected int port;
@@ -49,8 +50,31 @@ public class AbstractDnsServer implements Cloneable {
         return port;
     }
 
+    /**
+     * Identifier stored in the preferences. Ad-hoc servers (for example the extra
+     * servers of the DNS test) have none.
+     */
+    public String getId() {
+        return null;
+    }
+
     public String getName() {
         return "";
+    }
+
+    /**
+     * Whether the server is reached through the SOCKS5 proxy configured in Settings.
+     */
+    public boolean isProxied() {
+        return false;
+    }
+
+    /**
+     * Name of the certificate trusted for DNS over TLS connections to this server in
+     * addition to the system CAs, or null. See {@link org.itxtech.daedalus.util.TlsCertificates}.
+     */
+    public String getCertificate() {
+        return null;
     }
 
     @Override

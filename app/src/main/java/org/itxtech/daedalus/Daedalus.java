@@ -6,6 +6,7 @@ import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.ShortcutInfo;
 import android.content.pm.ShortcutManager;
+import android.content.res.Configuration;
 import android.graphics.drawable.Icon;
 import android.net.Uri;
 import android.net.VpnService;
@@ -24,6 +25,7 @@ import org.itxtech.daedalus.util.Configurations;
 import org.itxtech.daedalus.util.Logger;
 import org.itxtech.daedalus.util.Rule;
 import org.itxtech.daedalus.util.RuleResolver;
+import org.itxtech.daedalus.util.SocksProxy;
 
 import java.io.File;
 import java.util.ArrayList;
@@ -46,12 +48,16 @@ public class Daedalus extends Application {
     private static final String SHORTCUT_ID_ACTIVATE = "shortcut_activate";
 
     public static final List<DnsServer> DNS_SERVERS = new ArrayList<DnsServer>() {{
+        // Every built-in server can be switched off in Settings > Server Management
         add(new DnsServer("101.101.101.101", R.string.server_twnic_primary));
         add(new DnsServer("101.102.103.104", R.string.server_twnic_secondary));
         add(new DnsServer("rubyfish.cn/dns-query", R.string.server_rubyfish));
         add(new DnsServer("cloudflare-dns.com/dns-query", R.string.server_cloudflare));
         add(new DnsServer("dns.google/dns-query", R.string.server_google_ietf));
         add(new DnsServer("dns.google/resolve", R.string.server_google_json));
+        add(new DnsServer("dns.alidns.com", R.string.server_alidns, AbstractDnsServer.DNS_SERVER_TLS_PORT));
+        add(new DnsServer("dns.alidns.com/dns-query", R.string.server_alidns_doh));
+        add(new DnsServer("i4cm5lqxfu.cloudflare-gateway.com/dns-query", R.string.server_cloudflare_gateway));
     }};
 
     public static final ArrayList<Rule> RULES = new ArrayList<Rule>() {{
@@ -79,7 +85,6 @@ public class Daedalus extends Application {
     public static Configurations configurations;
     public static String rulePath;
     public static String logPath;
-    private static String configPath;
 
     private static Daedalus instance;
     private SharedPreferences prefs;
@@ -94,6 +99,7 @@ public class Daedalus extends Application {
         mResolver = new Thread(new RuleResolver());
         mResolver.start();
         initData();
+        SocksProxy.installAuthenticator();
     }
 
     private void initDirectory(String dir) {
@@ -110,20 +116,29 @@ public class Daedalus extends Application {
         PreferenceManager.setDefaultValues(this, R.xml.perf_settings, false);
         prefs = PreferenceManager.getDefaultSharedPreferences(this);
 
+        // "dns_test_servers" used to default to the VPN alias addresses, which only answer
+        // while the VPN is running. Installs that still carry that value get the new default once.
+        if ("10.0.0.2,10.0.0.3".equals(prefs.getString("dns_test_servers", ""))) {
+            prefs.edit().putString("dns_test_servers", getString(R.string.default_dns_test_servers)).apply();
+        }
+        // The dark theme used to be a switch; a switched-on one becomes the "dark" choice
+        if (!prefs.contains("settings_theme") && prefs.getBoolean("settings_dark_theme", false)) {
+            prefs.edit().putString("settings_theme", THEME_DARK).apply();
+        }
+
+        File legacyConfigFile = null;
         if (getExternalFilesDir(null) != null) {
             rulePath = getExternalFilesDir(null).getPath() + "/rules/";
             logPath = getExternalFilesDir(null).getPath() + "/logs/";
-            configPath = getExternalFilesDir(null).getPath() + "/config.json";
+            legacyConfigFile = new File(getExternalFilesDir(null), "config.json");
 
             initDirectory(rulePath);
             initDirectory(logPath);
         }
 
-        if (configPath != null) {
-            configurations = Configurations.load(new File(configPath));
-        } else {
-            configurations = new Configurations();
-        }
+        // Internal storage is always available, unlike the external files directory that
+        // older versions used and that may be missing right after boot.
+        configurations = Configurations.load(new File(getFilesDir(), "config.json"), legacyConfigFile);
     }
 
     public static <T> T parseJson(Class<T> beanClass, JsonReader reader) throws JsonParseException {
@@ -170,8 +185,27 @@ public class Daedalus extends Application {
         return getInstance().prefs;
     }
 
+    public static final String THEME_AUTO = "auto";
+    public static final String THEME_DARK = "dark";
+    public static final String THEME_LIGHT = "light";
+
+    /**
+     * Whether the dark theme applies right now: the "settings_theme" choice, following
+     * the system's night mode when set to auto.
+     */
     public static boolean isDarkTheme() {
-        return getInstance().prefs.getBoolean("settings_dark_theme", false);
+        return isDarkTheme(getInstance().getResources().getConfiguration());
+    }
+
+    public static boolean isDarkTheme(Configuration configuration) {
+        String theme = getInstance().prefs.getString("settings_theme", THEME_AUTO);
+        if (THEME_DARK.equals(theme)) {
+            return true;
+        }
+        if (THEME_LIGHT.equals(theme)) {
+            return false;
+        }
+        return (configuration.uiMode & Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES;
     }
 
     @Override

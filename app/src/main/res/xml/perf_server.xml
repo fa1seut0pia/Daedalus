@@ -22,5 +22,14 @@
                 android:singleLine="true"
                 android:numeric="integer"
                 android:title="@string/settings_server_port"/>
+        <SwitchPreference
+                android:key="serverProxied"
+                android:title="@string/settings_server_proxied"
+                android:summary="@string/settings_server_proxied_summary"
+                android:defaultValue="false"/>
+        <Preference
+                android:key="serverCertificate"
+                android:title="@string/settings_server_certificate"
+                android:summary="@string/cert_none"/>
     </PreferenceCategory>
 </androidx.preference.PreferenceScreen>
