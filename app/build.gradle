@@ -2,7 +2,6 @@ apply plugin: 'com.android.application'
 
 def gitCommit = 'git rev-parse --short HEAD'.execute([], project.rootDir).text.trim()
 
-// 顶部加：读 local.properties
 def keystoreProperties = new Properties()
 def keystorePropertiesFile = rootProject.file("local.properties")
 if (keystorePropertiesFile.exists()) {
@@ -23,19 +22,22 @@ android {
         buildConfigField "String", "GIT_COMMIT", "\"${gitCommit}\""
     }
 
-    // ⭐ 新增：签名配置
     signingConfigs {
         release {
-            storeFile file(keystoreProperties['RELEASE_STORE_FILE'])
-            storePassword keystoreProperties['RELEASE_STORE_PASSWORD']
-            keyAlias keystoreProperties['RELEASE_KEY_ALIAS']
-            keyPassword keystoreProperties['RELEASE_KEY_PASSWORD']
+            // Only when local.properties provides a keystore; otherwise (CI, fresh clone)
+            // file(null) would abort the build script and break even debug builds
+            if (keystoreProperties['RELEASE_STORE_FILE']) {
+                storeFile file(keystoreProperties['RELEASE_STORE_FILE'])
+                storePassword keystoreProperties['RELEASE_STORE_PASSWORD']
+                keyAlias keystoreProperties['RELEASE_KEY_ALIAS']
+                keyPassword keystoreProperties['RELEASE_KEY_PASSWORD']
+            }
         }
     }
 
     buildTypes {
         release {
-            signingConfig signingConfigs.release   // ⭐ 新增这行
+            signingConfig signingConfigs.release
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }
