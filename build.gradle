@@ -1,24 +1,38 @@
 // Top-level build file where you can add configuration options common to all sub-projects/modules.
 
+// Use Aliyun mirrors (faster/more reliable in China):
+//   public  -> proxies Maven Central + JCenter
+//   google  -> proxies Google Maven (androidx / android SDK artifacts)
+// NOTE: 'io.fabric.tools:gradle' was removed - it was hosted on the now
+//       defunct fabric.io / Bintray and is unobtainable from any mirror.
+
 buildscript {
     repositories {
-        mavenCentral()
-        google()
         maven {
-            url 'https://maven.fabric.io/public'
+            name 'aliyun-public'
+            url 'https://maven.aliyun.com/repository/public'
+        }
+        maven {
+            name 'aliyun-google'
+            url 'https://maven.aliyun.com/repository/google'
         }
     }
     dependencies {
-        classpath 'com.android.tools.build:gradle:7.0.4'
+        classpath 'com.android.tools.build:gradle:7.2.0'
         classpath 'com.google.gms:google-services:4.3.10'
-        classpath 'io.fabric.tools:gradle:1.31.0'
     }
 }
 
 allprojects {
     repositories {
-        mavenCentral()
-        google()
+        maven {
+            name 'aliyun-public'
+            url 'https://maven.aliyun.com/repository/public'
+        }
+        maven {
+            name 'aliyun-google'
+            url 'https://maven.aliyun.com/repository/google'
+        }
     }
 }
 
