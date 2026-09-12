@@ -19,7 +19,6 @@ import org.itxtech.daedalus.server.DnsServerHelper;
 import org.itxtech.daedalus.service.DaedalusVpnService;
 import org.itxtech.daedalus.util.ConfigBackup;
 import org.itxtech.daedalus.util.Logger;
-import org.itxtech.daedalus.util.SocksProxy;
 
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
@@ -95,14 +94,6 @@ public class GlobalConfigFragment extends PreferenceFragmentCompat {
             updateOptions((boolean) w, "settings_app_filter");
             return true;
         });
-
-        setSummaryWithHint(findPreference(SocksProxy.PREF_HOST), R.string.settings_socks5_host_summary);
-        setSummaryWithHint(findPreference(SocksProxy.PREF_PORT), 0);
-        setSummaryWithHint(findPreference(SocksProxy.PREF_USERNAME), R.string.settings_socks5_username_summary);
-        ((EditTextPreference) findPreference(SocksProxy.PREF_PORT)).setOnBindEditTextListener(editText ->
-                editText.setInputType(InputType.TYPE_CLASS_NUMBER));
-        ((EditTextPreference) findPreference(SocksProxy.PREF_PASSWORD)).setOnBindEditTextListener(editText ->
-                editText.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD));
 
         findPreference("settings_export_config").setOnPreferenceClickListener(preference -> {
             Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT);

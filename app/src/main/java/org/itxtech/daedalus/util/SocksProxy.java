@@ -1,8 +1,8 @@
 package org.itxtech.daedalus.util;
 
-import android.content.SharedPreferences;
 import org.itxtech.daedalus.Daedalus;
 import org.itxtech.daedalus.server.AbstractDnsServer;
+import org.itxtech.daedalus.server.CustomDnsServer;
 
 import java.net.Authenticator;
 import java.net.InetSocketAddress;
@@ -23,62 +23,51 @@ import java.net.Socket;
  */
 
 /**
- * The SOCKS5 proxy configured in Settings > SOCKS5 Proxy. It is used only for custom
- * DNS servers that have "Connect through SOCKS5 proxy" enabled, e.g. a DNS server inside
- * an EasyTier subnet exposed by EasyTier's SOCKS5 server in non-TUN mode. SOCKS5 CONNECT
- * only carries TCP, so plain UDP queries to such a server are sent as DNS over TCP.
+ * SOCKS5 proxies of custom DNS servers. Each server carries its own proxy settings,
+ * e.g. a DNS server inside an EasyTier subnet is reached through EasyTier's SOCKS5
+ * server on this phone. SOCKS5 CONNECT only carries TCP, so plain UDP queries to such
+ * a server are sent as DNS over TCP.
  */
 public class SocksProxy {
-    public static final String PREF_HOST = "settings_socks5_host";
-    public static final String PREF_PORT = "settings_socks5_port";
-    public static final String PREF_USERNAME = "settings_socks5_username";
-    public static final String PREF_PASSWORD = "settings_socks5_password";
-
     public static final String DEFAULT_HOST = "127.0.0.1";
-    public static final int DEFAULT_PORT = 1080;
+    public static final int DEFAULT_PORT = CustomDnsServer.DEFAULT_PROXY_PORT;
+
+    // A server that is not (yet) in the configuration but whose proxy credentials the
+    // authenticator must know, e.g. the one being tested on the server settings page
+    private static volatile AbstractDnsServer extraServer = null;
 
     public static boolean isProxied(AbstractDnsServer server) {
         return server != null && server.isProxied();
     }
 
     /**
-     * The configured proxy, regardless of which servers use it.
-     */
-    public static Proxy getProxy() {
-        SharedPreferences prefs = Daedalus.getPrefs();
-        String host = prefs.getString(PREF_HOST, DEFAULT_HOST);
-        host = host == null ? "" : host.trim();
-        if (host.isEmpty()) {
-            host = DEFAULT_HOST;
-        }
-        int port = DEFAULT_PORT;
-        try {
-            port = Integer.parseInt(prefs.getString(PREF_PORT, String.valueOf(DEFAULT_PORT)).trim());
-        } catch (Exception e) {
-            Logger.warning("Invalid SOCKS5 proxy port, using " + DEFAULT_PORT);
-        }
-        return new Proxy(Proxy.Type.SOCKS, InetSocketAddress.createUnresolved(host, port));
-    }
-
-    /**
      * The proxy to reach the given server through, or null for a direct connection.
      */
     public static Proxy getProxy(AbstractDnsServer server) {
-        return isProxied(server) ? getProxy() : null;
+        if (!isProxied(server)) {
+            return null;
+        }
+        int port = server.getProxyPort() > 0 ? server.getProxyPort() : DEFAULT_PORT;
+        return new Proxy(Proxy.Type.SOCKS, InetSocketAddress.createUnresolved(server.getProxyHost().trim(), port));
     }
 
     /**
      * An unconnected TCP socket for the given server, going through the proxy when the
-     * server is configured to use it.
+     * server is configured to use one.
      */
     public static Socket createSocket(AbstractDnsServer server) {
         Proxy proxy = getProxy(server);
         return proxy == null ? new Socket() : new Socket(proxy);
     }
 
+    public static void setExtraServer(AbstractDnsServer server) {
+        extraServer = server;
+    }
+
     /**
      * Answers SOCKS5 username/password requests of java.net sockets (and therefore of
-     * OkHttp) with the configured credentials. Call once at application start.
+     * OkHttp) with the credentials of the server configured for that proxy. Call once at
+     * application start.
      */
     public static void installAuthenticator() {
         Authenticator.setDefault(new Authenticator() {
@@ -87,14 +76,29 @@ public class SocksProxy {
                 if (!"SOCKS5".equalsIgnoreCase(getRequestingProtocol())) {
                     return null;
                 }
-                SharedPreferences prefs = Daedalus.getPrefs();
-                String username = prefs.getString(PREF_USERNAME, "");
-                if (username == null || username.isEmpty()) {
-                    return null;
+                String host = getRequestingHost();
+                int port = getRequestingPort();
+                PasswordAuthentication extra = credentials(extraServer, host, port);
+                if (extra != null) {
+                    return extra;
                 }
-                String password = prefs.getString(PREF_PASSWORD, "");
-                return new PasswordAuthentication(username, (password == null ? "" : password).toCharArray());
+                for (CustomDnsServer server : Daedalus.configurations.getCustomDNSServers()) {
+                    PasswordAuthentication authentication = credentials(server, host, port);
+                    if (authentication != null) {
+                        return authentication;
+                    }
+                }
+                return null;
             }
         });
+    }
+
+    private static PasswordAuthentication credentials(AbstractDnsServer server, String host, int port) {
+        if (!isProxied(server) || server.getProxyUsername() == null || server.getProxyUsername().isEmpty()
+                || !server.getProxyHost().trim().equalsIgnoreCase(host) || server.getProxyPort() != port) {
+            return null;
+        }
+        String password = server.getProxyPassword();
+        return new PasswordAuthentication(server.getProxyUsername(), (password == null ? "" : password).toCharArray());
     }
 }

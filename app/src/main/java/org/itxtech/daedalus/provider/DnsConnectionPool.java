@@ -107,7 +107,8 @@ public class DnsConnectionPool {
     }
 
     private static String key(AbstractDnsServer server, boolean tls) {
-        return server.getAddress() + ":" + server.getPort() + (server.isProxied() ? "/socks5" : "")
+        return server.getAddress() + ":" + server.getPort()
+                + (server.isProxied() ? "/socks5/" + server.getProxyHost() + ":" + server.getProxyPort() : "")
                 + (tls ? "/tls/" + server.getCertificate() : "/tcp");
     }
 

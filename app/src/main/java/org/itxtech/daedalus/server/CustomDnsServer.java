@@ -14,11 +14,19 @@ import org.itxtech.daedalus.Daedalus;
  * (at your option) any later version.
  */
 public class CustomDnsServer extends AbstractDnsServer {
+    public static final int DEFAULT_PROXY_PORT = 1080;
+
     private String name;
     private String id;
-    // Reached through the SOCKS5 proxy (Settings > SOCKS5 Proxy), e.g. a DNS server inside
-    // an EasyTier subnet. Missing in configurations written by older versions, so false by default.
+    // Flag of configurations written before the proxy settings moved into the server.
+    // Kept so that such servers can be migrated once, see Daedalus.migrateProxySettings().
     private boolean proxied;
+    // SOCKS5 proxy this server is reached through, e.g. EasyTier's on this phone; null for
+    // a direct connection
+    private String proxyHost;
+    private int proxyPort;
+    private String proxyUsername;
+    private String proxyPassword;
     // Certificate trusted for DoT connections to this server (self-signed or private CA), or null
     private String certificate;
 
@@ -46,12 +54,47 @@ public class CustomDnsServer extends AbstractDnsServer {
     }
 
     @Override
-    public boolean isProxied() {
-        return proxied;
+    public String getProxyHost() {
+        return proxyHost;
     }
 
-    public void setProxied(boolean proxied) {
-        this.proxied = proxied;
+    @Override
+    public int getProxyPort() {
+        return proxyPort > 0 ? proxyPort : DEFAULT_PROXY_PORT;
+    }
+
+    @Override
+    public String getProxyUsername() {
+        return proxyUsername;
+    }
+
+    @Override
+    public String getProxyPassword() {
+        return proxyPassword;
+    }
+
+    /**
+     * Reaches the server through the given SOCKS5 proxy; an empty host means a direct
+     * connection. Empty credentials mean the proxy needs no authentication.
+     */
+    public void setProxy(String host, int port, String username, String password) {
+        proxyHost = host == null || host.trim().isEmpty() ? null : host.trim();
+        proxyPort = port > 0 ? port : DEFAULT_PROXY_PORT;
+        proxyUsername = username == null || username.isEmpty() ? null : username;
+        proxyPassword = password == null || password.isEmpty() ? null : password;
+        proxied = proxyHost != null;
+    }
+
+    public void clearProxy() {
+        setProxy(null, 0, null, null);
+    }
+
+    /**
+     * Whether an older version flagged the server as proxied without storing the proxy
+     * itself; the settings of that time have to be copied in.
+     */
+    public boolean hasLegacyProxyFlag() {
+        return proxied && proxyHost == null;
     }
 
     @Override

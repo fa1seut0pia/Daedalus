@@ -75,7 +75,12 @@ public class ConfigBackup {
         String name;
         String address;
         int port;
+        // Kept for documents of versions with a single global proxy
         boolean proxied;
+        String proxyHost;
+        int proxyPort;
+        String proxyUsername;
+        String proxyPassword;
         String certificate;
     }
 
@@ -122,6 +127,12 @@ public class ConfigBackup {
             entry.address = server.getAddress();
             entry.port = server.getPort();
             entry.proxied = server.isProxied();
+            if (server.isProxied()) {
+                entry.proxyHost = server.getProxyHost();
+                entry.proxyPort = server.getProxyPort();
+                entry.proxyUsername = server.getProxyUsername();
+                entry.proxyPassword = server.getProxyPassword();
+            }
             if (TlsCertificates.exists(server.getCertificate())) {
                 entry.certificate = TlsCertificates.readPem(server.getCertificate());
             }
@@ -171,10 +182,12 @@ public class ConfigBackup {
 
     /**
      * Preferences that are not settings of their own: the default servers are exported as
-     * references, and keys starting with "_" belong to the preference framework.
+     * references, keys starting with "_" belong to the preference framework, and the
+     * global SOCKS5 settings of older versions now live in the servers.
      */
     private static boolean isExcludedPreference(String key) {
-        return key.startsWith("_") || key.equals("primary_server") || key.equals("secondary_server");
+        return key.startsWith("_") || key.equals("primary_server") || key.equals("secondary_server")
+                || key.startsWith("settings_socks5_");
     }
 
     /**
@@ -224,7 +237,7 @@ public class ConfigBackup {
 
         Result result = new Result();
         if (document.servers != null) {
-            importServers(document.servers, result);
+            importServers(document.servers, document.preferences, result);
         }
         if (document.rules != null) {
             importRules(document.rules, result);
@@ -247,7 +260,8 @@ public class ConfigBackup {
         return result;
     }
 
-    private static void importServers(List<ServerEntry> entries, Result result) throws IOException, GeneralSecurityException {
+    private static void importServers(List<ServerEntry> entries, JsonObject preferences, Result result)
+            throws IOException, GeneralSecurityException {
         ArrayList<CustomDnsServer> servers = Daedalus.configurations.getCustomDNSServers();
         for (ServerEntry entry : entries) {
             if (entry == null || entry.address == null || entry.address.trim().isEmpty()) {
@@ -261,23 +275,51 @@ public class ConfigBackup {
                 certificate = TlsCertificates.importPem(entry.certificate);
             }
 
+            String proxyHost = entry.proxyHost == null ? "" : entry.proxyHost.trim();
+            int proxyPort = entry.proxyPort;
+            String proxyUsername = entry.proxyUsername;
+            String proxyPassword = entry.proxyPassword;
+            if (proxyHost.isEmpty() && entry.proxied) {
+                // Document of a version with one global proxy: take it from its settings section
+                proxyHost = stringOf(preferences, "settings_socks5_host", SocksProxy.DEFAULT_HOST);
+                try {
+                    proxyPort = Integer.parseInt(stringOf(preferences, "settings_socks5_port", "").trim());
+                } catch (NumberFormatException e) {
+                    proxyPort = SocksProxy.DEFAULT_PORT;
+                }
+                proxyUsername = stringOf(preferences, "settings_socks5_username", null);
+                proxyPassword = stringOf(preferences, "settings_socks5_password", null);
+            }
+
             CustomDnsServer existing = findServer(servers, address, port);
             if (existing == null) {
                 CustomDnsServer server = new CustomDnsServer(name, address, port);
-                server.setProxied(entry.proxied);
+                server.setProxy(proxyHost, proxyPort, proxyUsername, proxyPassword);
                 server.setCertificate(certificate);
                 servers.add(server);
                 result.serversAdded++;
             } else {
                 String previous = existing.getCertificate();
                 existing.setName(name);
-                existing.setProxied(entry.proxied);
+                existing.setProxy(proxyHost, proxyPort, proxyUsername, proxyPassword);
                 existing.setCertificate(certificate);
                 if (previous != null && !previous.equals(certificate)) {
                     TlsCertificates.deleteIfUnused(previous);
                 }
                 result.serversUpdated++;
             }
+        }
+    }
+
+    private static String stringOf(JsonObject object, String key, String fallback) {
+        if (object == null || !object.has(key) || object.get(key).isJsonNull()) {
+            return fallback;
+        }
+        try {
+            String value = object.get(key).getAsString();
+            return value.trim().isEmpty() ? fallback : value;
+        } catch (Exception e) {
+            return fallback;
         }
     }
 

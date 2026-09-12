@@ -34,34 +34,6 @@
 
     <PreferenceCategory
             app:iconSpaceReserved="false"
-            android:key="settings_socks5"
-            android:title="@string/settings_socks5">
-        <Preference
-                android:key="settings_socks5_hint"
-                android:summary="@string/settings_socks5_hint"
-                android:selectable="false"/>
-        <EditTextPreference
-                android:key="settings_socks5_host"
-                android:title="@string/settings_socks5_host"
-                android:defaultValue="127.0.0.1"
-                android:singleLine="true"/>
-        <EditTextPreference
-                android:key="settings_socks5_port"
-                android:title="@string/settings_socks5_port"
-                android:defaultValue="1080"
-                android:singleLine="true"/>
-        <EditTextPreference
-                android:key="settings_socks5_username"
-                android:title="@string/settings_socks5_username"
-                android:singleLine="true"/>
-        <EditTextPreference
-                android:key="settings_socks5_password"
-                android:title="@string/settings_socks5_password"
-                android:singleLine="true"/>
-    </PreferenceCategory>
-
-    <PreferenceCategory
-            app:iconSpaceReserved="false"
             android:key="settings_system"
             android:title="@string/settings_system">
 
