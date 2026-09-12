@@ -61,6 +61,8 @@ public class UnifiedProvider extends Provider {
     private final ExecutorService executor = Executors.newCachedThreadPool(runnable -> {
         Thread thread = new Thread(runnable, "DnsQuery");
         thread.setDaemon(true);
+        // A failing query must never take the whole app down
+        thread.setUncaughtExceptionHandler((t, e) -> Logger.logException(e));
         return thread;
     });
     private final Object writeLock = new Object();
@@ -269,11 +271,15 @@ public class UnifiedProvider extends Provider {
             }
         }
         // Every server failed: answer SERVFAIL so that the app does not sit in the resolver's timeout
-        handleDnsResponse(packet, message.asBuilder()
-                .setQrFlag(true)
-                .setRecursionAvailable(true)
-                .setResponseCode(DnsMessage.RESPONSE_CODE.SERVER_FAIL)
-                .build().toArray());
+        try {
+            handleDnsResponse(packet, message.asBuilder()
+                    .setQrFlag(true)
+                    .setRecursionAvailable(true)
+                    .setResponseCode(DnsMessage.RESPONSE_CODE.SERVER_FAIL)
+                    .build().toArray());
+        } catch (Exception e) {
+            Logger.logException(e);
+        }
         QueryLog.add(question, selection, "", DnsMessage.RESPONSE_CODE.SERVER_FAIL.name(),
                 SystemClock.elapsedRealtime() - start, failures.toString());
     }

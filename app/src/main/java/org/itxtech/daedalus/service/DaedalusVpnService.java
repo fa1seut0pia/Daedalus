@@ -62,6 +62,11 @@ public class DaedalusVpnService extends VpnService implements Runnable {
      * startForeground() right away, or the system kills the app after a few seconds.
      */
     public static final String EXTRA_FOREGROUND = "org.itxtech.daedalus.service.DaedalusVpnService.EXTRA_FOREGROUND";
+    /**
+     * Whether the running service is a foreground service; read back when the system
+     * restarts the service after killing the process.
+     */
+    private static final String PREF_FOREGROUND = "service_foreground";
 
     private static final int NOTIFICATION_ACTIVATED = 0;
 
@@ -131,38 +136,67 @@ public class DaedalusVpnService extends VpnService implements Runnable {
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
-        if (intent != null) {
-            switch (intent.getAction()) {
-                case ACTION_ACTIVATE:
-                    activated = true;
-                    boolean startForeground = intent.getBooleanExtra(EXTRA_FOREGROUND, false);
-                    if (startForeground || Daedalus.getPrefs().getBoolean("settings_notification", true)) {
-                        NotificationCompat.Builder builder = buildNotification();
-                        if (startForeground) {
-                            // A foreground service always shows its notification
-                            startForeground(NOTIFICATION_ACTIVATED, builder.build());
-                            foreground = true;
-                        } else {
-                            NotificationManager manager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
-                            manager.notify(NOTIFICATION_ACTIVATED, builder.build());
-                        }
-                        this.notification = builder;
-                    }
-
-                    Daedalus.initRuleResolver();
-                    startThread();
-                    Daedalus.updateShortcut(getApplicationContext());
-                    if (MainActivity.getInstance() != null) {
-                        MainActivity.getInstance().startActivity(new Intent(getApplicationContext(), MainActivity.class)
-                                .putExtra(MainActivity.LAUNCH_ACTION, MainActivity.LAUNCH_ACTION_SERVICE_DONE));
-                    }
-                    return START_STICKY;
-                case ACTION_DEACTIVATE:
-                    stopThread();
-                    return START_NOT_STICKY;
-            }
+        if (intent == null) {
+            // START_STICKY restart after the system killed the process: nothing is re-delivered
+            // and the statics of the previous process are gone. Re-establish the VPN with the
+            // servers of the settings; a service that ran in the foreground goes back there
+            // right away, otherwise the system kills the app once more.
+            Logger.warning("Service restarted by the system after the process was killed, re-activating the VPN");
+            return activate(true, Daedalus.getPrefs().getBoolean(PREF_FOREGROUND, false));
+        }
+        String action = intent.getAction();
+        if (ACTION_ACTIVATE.equals(action)) {
+            return activate(false, intent.getBooleanExtra(EXTRA_FOREGROUND, false));
+        }
+        if (ACTION_DEACTIVATE.equals(action)) {
+            stopThread();
         }
         return START_NOT_STICKY;
+    }
+
+    private int activate(boolean restart, boolean foregroundRequested) {
+        if (mThread != null) {
+            // Already running, e.g. the activate intent was delivered twice
+            return START_STICKY;
+        }
+        activated = true;
+        if (primaryServer == null || secondaryServer == null) {
+            primaryServer = (AbstractDnsServer) DnsServerHelper.getServerById(DnsServerHelper.getPrimary()).clone();
+            secondaryServer = (AbstractDnsServer) DnsServerHelper.getServerById(DnsServerHelper.getSecondary()).clone();
+        }
+
+        boolean showNotification = Daedalus.getPrefs().getBoolean("settings_notification", true);
+        if (foregroundRequested || showNotification) {
+            NotificationCompat.Builder builder = buildNotification();
+            if (foregroundRequested) {
+                try {
+                    // A foreground service always shows its notification
+                    startForeground(NOTIFICATION_ACTIVATED, builder.build());
+                    foreground = true;
+                } catch (Exception e) {
+                    // Android 12+ refuses startForeground() from the background unless the
+                    // system itself asked for the service; carry on as a plain started service
+                    Logger.warning("Cannot run in the foreground: " + e);
+                }
+            }
+            if (!foreground && showNotification) {
+                NotificationManager manager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+                manager.notify(NOTIFICATION_ACTIVATED, builder.build());
+            }
+            if (foreground || showNotification) {
+                this.notification = builder;
+            }
+        }
+        Daedalus.getPrefs().edit().putBoolean(PREF_FOREGROUND, foreground).apply();
+
+        Daedalus.initRuleResolver();
+        startThread();
+        Daedalus.updateShortcut(getApplicationContext());
+        if (!restart && MainActivity.getInstance() != null) {
+            MainActivity.getInstance().startActivity(new Intent(getApplicationContext(), MainActivity.class)
+                    .putExtra(MainActivity.LAUNCH_ACTION, MainActivity.LAUNCH_ACTION_SERVICE_DONE));
+        }
+        return START_STICKY;
     }
 
     private NotificationCompat.Builder buildNotification() {
@@ -219,6 +253,7 @@ public class DaedalusVpnService extends VpnService implements Runnable {
     private void stopThread() {
         Log.d(TAG, "stopThread");
         activated = false;
+        Daedalus.getPrefs().edit().putBoolean(PREF_FOREGROUND, false).apply();
         boolean shouldRefresh = false;
         unregisterNetworkCallback();
         try {
@@ -269,6 +304,7 @@ public class DaedalusVpnService extends VpnService implements Runnable {
 
     @Override
     public void onRevoke() {
+        Logger.warning("VPN permission revoked: another VPN app took over, or the VPN was turned off in the system settings");
         stopThread();
     }
 

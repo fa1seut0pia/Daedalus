@@ -187,7 +187,7 @@ public class ConfigBackup {
      */
     private static boolean isExcludedPreference(String key) {
         return key.startsWith("_") || key.equals("primary_server") || key.equals("secondary_server")
-                || key.startsWith("settings_socks5_");
+                || key.startsWith("settings_socks5_") || key.startsWith("service_");
     }
 
     /**
